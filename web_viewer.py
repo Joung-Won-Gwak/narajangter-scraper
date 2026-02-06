@@ -18,16 +18,25 @@ def get_db_connection():
     database_url = os.getenv("DATABASE_URL")
     
     if database_url:
-        # Railway의 DATABASE_URL 사용
-        return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
-    else:
-        # 개별 환경변수 사용 (Railway PG* 또는 로컬)
+        # DATABASE_URL 파싱하여 개별 파라미터로 전달
+        from urllib.parse import urlparse
+        parsed = urlparse(database_url)
         return psycopg2.connect(
-            host=os.getenv("PGHOST") or os.getenv("POSTGRES_HOST", "localhost"),
-            port=int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432)),
-            database=os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "railway"),
-            user=os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
-            password=os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres"),
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+            database=parsed.path[1:],  # 앞의 '/' 제거
+            user=parsed.username,
+            password=parsed.password,
+            cursor_factory=RealDictCursor
+        )
+    else:
+        # 개별 환경변수 사용 (로컬 개발용)
+        return psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", 5432)),
+            database=os.getenv("POSTGRES_DB", "railway"),
+            user=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "postgres"),
             cursor_factory=RealDictCursor
         )
 

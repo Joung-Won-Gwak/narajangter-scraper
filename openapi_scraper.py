@@ -32,14 +32,25 @@ class PostgreSQLConnector:
         self.database_url = database_url or os.getenv("DATABASE_URL")
         self.connection_params = None
         
-        if not self.database_url:
-            # Railway PG* 환경변수 또는 로컬 기본값 사용
+        if self.database_url:
+            # DATABASE_URL 파싱
+            from urllib.parse import urlparse
+            parsed = urlparse(self.database_url)
             self.connection_params = {
-                "host": os.getenv("PGHOST") or os.getenv("POSTGRES_HOST", "localhost"),
-                "port": int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432)),
-                "database": os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "railway"),
-                "user": os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
-                "password": os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres")
+                "host": parsed.hostname,
+                "port": parsed.port or 5432,
+                "database": parsed.path[1:],  # 앞의 '/' 제거
+                "user": parsed.username,
+                "password": parsed.password
+            }
+        else:
+            # 로컬 개발용 기본값
+            self.connection_params = {
+                "host": os.getenv("POSTGRES_HOST", "localhost"),
+                "port": int(os.getenv("POSTGRES_PORT", 5432)),
+                "database": os.getenv("POSTGRES_DB", "railway"),
+                "user": os.getenv("POSTGRES_USER", "postgres"),
+                "password": os.getenv("POSTGRES_PASSWORD", "postgres")
             }
         
         self.connection = None
@@ -48,10 +59,7 @@ class PostgreSQLConnector:
     def connect(self):
         """데이터베이스 연결"""
         try:
-            if self.database_url:
-                self.connection = psycopg2.connect(self.database_url)
-            else:
-                self.connection = psycopg2.connect(**self.connection_params)
+            self.connection = psycopg2.connect(**self.connection_params)
             self.cursor = self.connection.cursor()
             logger.info("PostgreSQL 데이터베이스에 연결되었습니다.")
         except psycopg2.Error as e:

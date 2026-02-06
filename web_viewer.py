@@ -14,15 +14,22 @@ load_dotenv()
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 def get_db_connection():
-    """데이터베이스 연결"""
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=int(os.getenv("POSTGRES_PORT", 5432)),
-        database=os.getenv("POSTGRES_DB", "postgres"),
-        user=os.getenv("POSTGRES_USER", "postgres"),
-        password=os.getenv("POSTGRES_PASSWORD", "postgres"),
-        cursor_factory=RealDictCursor
-    )
+    """데이터베이스 연결 - Railway DATABASE_URL 또는 개별 변수 지원"""
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url:
+        # Railway의 DATABASE_URL 사용
+        return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+    else:
+        # 개별 환경변수 사용 (Railway PG* 또는 로컬)
+        return psycopg2.connect(
+            host=os.getenv("PGHOST") or os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432)),
+            database=os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "railway"),
+            user=os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres"),
+            cursor_factory=RealDictCursor
+        )
 
 @app.route('/')
 def index():

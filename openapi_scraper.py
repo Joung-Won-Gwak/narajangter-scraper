@@ -28,28 +28,30 @@ logger = logging.getLogger(__name__)
 class PostgreSQLConnector:
     """PostgreSQL 데이터베이스 연결 및 조작 클래스"""
     
-    def __init__(
-        self,
-        host: str = "localhost",
-        port: int = 5432,
-        database: str = "postgres",
-        user: str = "postgres",
-        password: str = "postgres"
-    ):
-        self.connection_params = {
-            "host": host,
-            "port": port,
-            "database": database,
-            "user": user,
-            "password": password
-        }
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        self.connection_params = None
+        
+        if not self.database_url:
+            # Railway PG* 환경변수 또는 로컬 기본값 사용
+            self.connection_params = {
+                "host": os.getenv("PGHOST") or os.getenv("POSTGRES_HOST", "localhost"),
+                "port": int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432)),
+                "database": os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "railway"),
+                "user": os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
+                "password": os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres")
+            }
+        
         self.connection = None
         self.cursor = None
     
     def connect(self):
         """데이터베이스 연결"""
         try:
-            self.connection = psycopg2.connect(**self.connection_params)
+            if self.database_url:
+                self.connection = psycopg2.connect(self.database_url)
+            else:
+                self.connection = psycopg2.connect(**self.connection_params)
             self.cursor = self.connection.cursor()
             logger.info("PostgreSQL 데이터베이스에 연결되었습니다.")
         except psycopg2.Error as e:
@@ -349,19 +351,8 @@ class NarajangterPipeline:
     ):
         self.api = NarajangterOpenAPI(service_key)
         
-        # 데이터베이스 설정
-        default_db_config = {
-            "host": os.getenv("POSTGRES_HOST", "localhost"),
-            "port": int(os.getenv("POSTGRES_PORT", 5432)),
-            "database": os.getenv("POSTGRES_DB", "narajangter"),
-            "user": os.getenv("POSTGRES_USER", "postgres"),
-            "password": os.getenv("POSTGRES_PASSWORD", "")
-        }
-        
-        if db_config:
-            default_db_config.update(db_config)
-        
-        self.db = PostgreSQLConnector(**default_db_config)
+        # 데이터베이스 연결 (DATABASE_URL 또는 환경변수 사용)
+        self.db = PostgreSQLConnector()
     
     def run(self, keyword: str = "정보시스템 감리", max_pages: int = 5) -> Dict[str, Any]:
         """
@@ -461,16 +452,8 @@ def main():
     
     args = parser.parse_args()
     
-    db_config = {
-        "host": args.db_host,
-        "port": args.db_port,
-        "database": args.db_name,
-        "user": args.db_user,
-        "password": args.db_password
-    }
-    
-    # 파이프라인 실행
-    pipeline = NarajangterPipeline(db_config=db_config)
+    # 파이프라인 실행 (DATABASE_URL 또는 환경변수에서 DB 설정 자동 로드)
+    pipeline = NarajangterPipeline()
     result = pipeline.run(keyword=args.keyword, max_pages=args.max_pages)
     
     # 결과 출력

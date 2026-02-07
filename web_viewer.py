@@ -13,6 +13,38 @@ load_dotenv()
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
+def init_db():
+    """데이터베이스 테이블 초기화"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS audit_notices (
+            id SERIAL PRIMARY KEY,
+            notice_id VARCHAR(100) UNIQUE,
+            title VARCHAR(500) NOT NULL,
+            organization VARCHAR(200),
+            publish_date DATE,
+            deadline_date TIMESTAMP,
+            estimated_price BIGINT,
+            contract_method VARCHAR(100),
+            notice_url TEXT,
+            detail_content TEXT,
+            raw_data JSONB,
+            scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        
+        cur.execute(create_table_sql)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✅ 데이터베이스 테이블 초기화 완료")
+    except Exception as e:
+        print(f"❌ 테이블 초기화 실패: {e}")
+
 def get_db_connection():
     """데이터베이스 연결 - Railway DATABASE_URL 또는 개별 변수 지원"""
     database_url = os.getenv("DATABASE_URL")
@@ -39,6 +71,10 @@ def get_db_connection():
             password=os.getenv("POSTGRES_PASSWORD", "postgres"),
             cursor_factory=RealDictCursor
         )
+
+# 앱 시작 시 테이블 초기화 (첫 요청 전)
+with app.app_context():
+    init_db()
 
 @app.route('/')
 def index():
@@ -172,5 +208,8 @@ def run_scraper():
             "inserted_count": 0
         }), 500
 
+
 if __name__ == '__main__':
+    init_db()  # 테이블 초기화
     app.run(debug=True, host='0.0.0.0', port=5000)
+

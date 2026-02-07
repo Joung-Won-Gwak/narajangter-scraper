@@ -53,20 +53,24 @@ def get_db_connection():
         # DATABASE_URL 파싱하여 개별 파라미터로 전달
         from urllib.parse import urlparse
         parsed = urlparse(database_url)
+        db_name = parsed.path[1:]  # 앞의 '/' 제거
+        print(f"🔗 DB 연결: host={parsed.hostname}, database={db_name}")
         return psycopg2.connect(
             host=parsed.hostname,
             port=parsed.port or 5432,
-            database=parsed.path[1:],  # 앞의 '/' 제거
+            database=db_name,
             user=parsed.username,
             password=parsed.password,
             cursor_factory=RealDictCursor
         )
     else:
         # 개별 환경변수 사용 (로컬 개발용)
+        db_name = os.getenv("POSTGRES_DB", "railway")
+        print(f"🔗 DB 연결 (로컬): database={db_name}")
         return psycopg2.connect(
             host=os.getenv("POSTGRES_HOST", "localhost"),
             port=int(os.getenv("POSTGRES_PORT", 5432)),
-            database=os.getenv("POSTGRES_DB", "railway"),
+            database=db_name,
             user=os.getenv("POSTGRES_USER", "postgres"),
             password=os.getenv("POSTGRES_PASSWORD", "postgres"),
             cursor_factory=RealDictCursor

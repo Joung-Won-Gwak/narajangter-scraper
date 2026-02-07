@@ -389,13 +389,25 @@ class NarajangterPipeline:
             notices = self.api.get_all_notices(keyword, max_pages)
             result["scraped_count"] = len(notices)
             
+            # 첫 번째 공고의 원본 데이터 로깅 (디버깅용)
+            if notices:
+                logger.info(f"첫 번째 공고 원본 데이터 샘플: {notices[0]}")
+            
             # 데이터 파싱 및 저장
-            for raw_notice in notices:
+            for idx, raw_notice in enumerate(notices, 1):
                 try:
                     parsed_notice = self.api.parse_notice_data(raw_notice)
+                    notice_id = parsed_notice.get('notice_id', 'N/A')
+                    title = parsed_notice.get('title', 'N/A')
+                    
                     if parsed_notice.get('notice_id') or parsed_notice.get('title'):
                         if self.db.insert_notice(parsed_notice):
                             result["inserted_count"] += 1
+                            logger.info(f"[{idx}/{len(notices)}] 저장 성공: {notice_id} - {title[:50]}")
+                        else:
+                            logger.warning(f"[{idx}/{len(notices)}] 저장 실패: {notice_id} - {title[:50]}")
+                    else:
+                        logger.warning(f"[{idx}/{len(notices)}] 공고 ID/제목 없음: {raw_notice}")
                 except Exception as e:
                     error_msg = f"공고 처리 중 오류: {e}"
                     logger.warning(error_msg)

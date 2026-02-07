@@ -19,6 +19,13 @@ def init_db():
         conn = get_db_connection()
         cur = conn.cursor()
         
+        # 기존 테이블 삭제 (스키마 변경 적용을 위해)
+        print("🗑️  기존 테이블 삭제 중...")
+        cur.execute("DROP TABLE IF EXISTS audit_notices;")
+        conn.commit()
+        print("✅ 기존 테이블 삭제 완료")
+        
+        # 새 테이블 생성
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS audit_notices (
             id SERIAL PRIMARY KEY,

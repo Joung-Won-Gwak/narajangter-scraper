@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}데이터 조회 - 나라장터 입찰공고{% endblock %}
+
+{% block content %}
+<header class="header">
+    <h1>🔍 데이터 조회</h1>
+    <p class="subtitle">수집된 입찰공고 검색 및 필터링</p>
+</header>
+
+<div class="search-container">
+    <div class="filter-card">
+        <h2>검색 조건</h2>
+
+        <form id="searchForm" class="search-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="keyword">키워드</label>
+                    <input type="text" id="keyword" name="keyword" class="form-input" placeholder="공고명 검색...">
+                </div>
+
+                <div class="form-group">
+                    <label for="organization">발주처</label>
+                    <input type="text" id="organization" name="organization" class="form-input" placeholder="발주기관명...">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="minPrice">최소 금액 (원)</label>
+                    <input type="number" id="minPrice" name="minPrice" class="form-input" placeholder="0" min="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="maxPrice">최대 금액 (원)</label>
+                    <input type="number" id="maxPrice" name="maxPrice" class="form-input" placeholder="1000000000"
+                        min="0">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="startDate">입찰 시작일</label>
+                    <input type="date" id="startDate" name="startDate" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label for="endDate">입찰 종료일</label>
+                    <input type="date" id="endDate" name="endDate" class="form-input">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-primary">
+                    <span class="btn-icon">🔍</span>
+                    검색
+                </button>
+                <button type="button" class="btn-secondary" onclick="resetForm()">
+                    <span class="btn-icon">🔄</span>
+                    초기화
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="results-summary" id="resultsSummary" style="display: none;">
+    <span id="resultsCount">0</span>건의 공고가 검색되었습니다.
+</div>
+
+<div class="table-container">
+    <table class="notices-table">
+        <thead>
+            <tr>
+                <th>공고번호</th>
+                <th>공고명</th>
+                <th>발주기관</th>
+                <th>추정가격</th>
+                <th>공고일</th>
+                <th>마감일</th>
+                <th>상세</th>
+            </tr>
+        </thead>
+        <tbody id="noticesBody">
+            <tr>
+                <td colspan="7" class="no-data">검색 조건을 입력하고 검색 버튼을 클릭하세요.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await searchNotices();
+    });
+
+    async function searchNotices() {
+        const keyword = document.getElementById('keyword').value;
+        const organization = document.getElementById('organization').value;
+        const minPrice = document.getElementById('minPrice').value;
+        const maxPrice = document.getElementById('maxPrice').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+
+        // URL 파라미터 구성
+        const params = new URLSearchParams();
+        if (keyword) params.append('keyword', keyword);
+        if (organization) params.append('organization', organization);
+        if (minPrice) params.append('min_price', minPrice);
+        if (maxPrice) params.append('max_price', maxPrice);
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+
+        const url = `/api/notices?${params.toString()}`;
+
+        try {
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.success) {
+                renderNotices(result.data);
+                document.getElementById('resultsCount').textContent = result.count;
+                document.getElementById('resultsSummary').style.display = 'block';
+            } else {
+                showError(result.error);
+            }
+        } catch (error) {
+            showError(error.message);
+        }
+    }
+
+    function renderNotices(notices) {
+        const tbody = document.getElementById('noticesBody');
+
+        if (notices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="no-data">검색 결과가 없습니다.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = notices.map(n => `
+            <tr>
+                <td class="notice-id">${n.notice_id || '-'}</td>
+                <td class="notice-title">${n.title || '-'}</td>
+                <td class="notice-org">${n.organization || '-'}</td>
+                <td class="notice-price">${n.estimated_price_formatted}</td>
+                <td class="notice-date">${formatDate(n.publish_date)}</td>
+                <td class="notice-deadline">${formatDate(n.deadline_date)}</td>
+                <td class="notice-link">
+                    ${n.notice_url ? `<a href="${n.notice_url}" target="_blank" class="detail-link">상세보기</a>` : '-'}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return dateStr.split(' ')[0];
+    }
+
+    function showError(message) {
+        const tbody = document.getElementById('noticesBody');
+        tbody.innerHTML = `<tr><td colspan="7" class="error">오류: ${message}</td></tr>`;
+        document.getElementById('resultsSummary').style.display = 'none';
+    }
+
+    function resetForm() {
+        document.getElementById('searchForm').reset();
+        document.getElementById('noticesBody').innerHTML = '<tr><td colspan="7" class="no-data">검색 조건을 입력하고 검색 버튼을 클릭하세요.</td></tr>';
+        document.getElementById('resultsSummary').style.display = 'none';
+    }
+
+    // 페이지 로드 시 전체 데이터 로드
+    document.addEventListener('DOMContentLoaded', () => {
+        searchNotices();
+    });
+</script>
+{% endblock %}

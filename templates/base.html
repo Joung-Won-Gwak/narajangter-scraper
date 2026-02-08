@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}나라장터 입찰공고 관리{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h2>🏛️ 나라장터 관리</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">📊 대시보드</a></li>
+                <li><a href="/collect" class="nav-link {% if request.path == '/collect' %}active{% endif %}">📥 데이터
+                        수집</a></li>
+                <li><a href="/search" class="nav-link {% if request.path == '/search' %}active{% endif %}">🔍 데이터 조회</a>
+                </li>
+                <li><a href="/proposal" class="nav-link {% if request.path == '/proposal' %}active{% endif %}">📝 제안서
+                        생성</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

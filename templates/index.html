@@ -1,162 +1,115 @@
-<!DOCTYPE html>
-<html lang="ko">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>나라장터 입찰공고 뷰어</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
+{% block title %}대시보드 - 나라장터 입찰공고{% endblock %}
 
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>🏛️ 나라장터 입찰공고</h1>
-            <p class="subtitle">정보시스템 감리 공고 현황</p>
-        </header>
+{% block content %}
+<header class="header">
+    <h1>📊 대시보드</h1>
+    <p class="subtitle">정보시스템 감리 공고 현황</p>
+</header>
 
-        <div class="stats-section">
-            <div class="stat-card">
-                <div class="stat-number" id="totalCount">-</div>
-                <div class="stat-label">전체 공고</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="todayCount">-</div>
-                <div class="stat-label">최근 수집</div>
-            </div>
-        </div>
-
-        <div class="search-section">
-            <button onclick="runScraper()" class="scrape-btn" id="scrapeBtn">📥 공고 수집</button>
-            <input type="text" id="searchInput" placeholder="공고명으로 검색..." class="search-input">
-            <button onclick="searchNotices()" class="search-btn">검색</button>
-            <button onclick="loadNotices()" class="refresh-btn">🔄 새로고침</button>
-        </div>
-
-        <div id="scrapeStatus" class="scrape-status" style="display: none;"></div>
-
-        <div class="table-container">
-            <table class="notices-table">
-                <thead>
-                    <tr>
-                        <th>공고번호</th>
-                        <th>공고명</th>
-                        <th>발주기관</th>
-                        <th>추정가격</th>
-                        <th>공고일</th>
-                        <th>마감일</th>
-                        <th>상세</th>
-                    </tr>
-                </thead>
-                <tbody id="noticesBody">
-                    <tr>
-                        <td colspan="7" class="loading">데이터를 불러오는 중...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+<div class="stats-section">
+    <div class="stat-card">
+        <div class="stat-number" id="totalCount">-</div>
+        <div class="stat-label">전체 공고</div>
     </div>
+    <div class="stat-card">
+        <div class="stat-number" id="todayCount">-</div>
+        <div class="stat-label">최근 수집</div>
+    </div>
+</div>
 
-    <script>
-        async function loadNotices() {
-            const keyword = document.getElementById('searchInput').value;
-            const url = keyword ? `/api/notices?keyword=${encodeURIComponent(keyword)}` : '/api/notices';
+<div class="quick-actions">
+    <a href="/collect" class="action-card">
+        <div class="action-icon">📥</div>
+        <h3>데이터 수집</h3>
+        <p>공공데이터포털에서 입찰공고 수집</p>
+    </a>
+    <a href="/search" class="action-card">
+        <div class="action-icon">🔍</div>
+        <h3>데이터 조회</h3>
+        <p>수집된 공고 검색 및 필터링</p>
+    </a>
+    <a href="/proposal" class="action-card">
+        <div class="action-icon">📝</div>
+        <h3>제안서 생성</h3>
+        <p>AI 기반 제안서 자동 생성</p>
+    </a>
+</div>
 
-            try {
-                const response = await fetch(url);
-                const result = await response.json();
+<div class="table-container">
+    <h2 class="section-title">최근 공고</h2>
+    <table class="notices-table">
+        <thead>
+            <tr>
+                <th>공고번호</th>
+                <th>공고명</th>
+                <th>발주기관</th>
+                <th>추정가격</th>
+                <th>공고일</th>
+                <th>상세</th>
+            </tr>
+        </thead>
+        <tbody id="noticesBody">
+            <tr>
+                <td colspan="6" class="loading">데이터를 불러오는 중...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
 
-                if (result.success) {
-                    document.getElementById('totalCount').textContent = result.count;
-                    document.getElementById('todayCount').textContent = result.count;
-                    renderNotices(result.data);
-                } else {
-                    showError(result.error);
-                }
-            } catch (error) {
-                showError(error.message);
+{% block extra_js %}
+<script>
+    async function loadNotices() {
+        try {
+            const response = await fetch('/api/notices?limit=10');
+            const result = await response.json();
+
+            if (result.success) {
+                document.getElementById('totalCount').textContent = result.count;
+                document.getElementById('todayCount').textContent = result.count;
+                renderNotices(result.data);
+            } else {
+                showError(result.error);
             }
+        } catch (error) {
+            showError(error.message);
+        }
+    }
+
+    function renderNotices(notices) {
+        const tbody = document.getElementById('noticesBody');
+
+        if (notices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="no-data">데이터가 없습니다.</td></tr>';
+            return;
         }
 
-        function renderNotices(notices) {
-            const tbody = document.getElementById('noticesBody');
+        tbody.innerHTML = notices.map(n => `
+            <tr>
+                <td class="notice-id">${n.notice_id || '-'}</td>
+                <td class="notice-title">${n.title || '-'}</td>
+                <td class="notice-org">${n.organization || '-'}</td>
+                <td class="notice-price">${n.estimated_price_formatted}</td>
+                <td class="notice-date">${formatDate(n.publish_date)}</td>
+                <td class="notice-link">
+                    ${n.notice_url ? `<a href="${n.notice_url}" target="_blank" class="detail-link">상세보기</a>` : '-'}
+                </td>
+            </tr>
+        `).join('');
+    }
 
-            if (notices.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="no-data">검색 결과가 없습니다.</td></tr>';
-                return;
-            }
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return dateStr.split(' ')[0];
+    }
 
-            tbody.innerHTML = notices.map(n => `
-                <tr>
-                    <td class="notice-id">${n.notice_id || '-'}</td>
-                    <td class="notice-title">${n.title || '-'}</td>
-                    <td class="notice-org">${n.organization || '-'}</td>
-                    <td class="notice-price">${n.estimated_price_formatted}</td>
-                    <td class="notice-date">${formatDate(n.publish_date)}</td>
-                    <td class="notice-deadline">${formatDate(n.deadline_date)}</td>
-                    <td class="notice-link">
-                        ${n.notice_url ? `<a href="${n.notice_url}" target="_blank" class="detail-link">상세보기</a>` : '-'}
-                    </td>
-                </tr>
-            `).join('');
-        }
+    function showError(message) {
+        const tbody = document.getElementById('noticesBody');
+        tbody.innerHTML = `<tr><td colspan="6" class="error">오류: ${message}</td></tr>`;
+    }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            return dateStr.split(' ')[0];
-        }
-
-        function showError(message) {
-            const tbody = document.getElementById('noticesBody');
-            tbody.innerHTML = `<tr><td colspan="7" class="error">오류: ${message}</td></tr>`;
-        }
-
-        function searchNotices() {
-            loadNotices();
-        }
-
-        document.getElementById('searchInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') searchNotices();
-        });
-
-        async function runScraper() {
-            const btn = document.getElementById('scrapeBtn');
-            const status = document.getElementById('scrapeStatus');
-
-            btn.disabled = true;
-            btn.textContent = '⏳ 수집 중...';
-            status.style.display = 'block';
-            status.className = 'scrape-status loading';
-            status.textContent = '공공데이터포털에서 데이터를 수집하고 있습니다...';
-
-            try {
-                const response = await fetch('/api/scrape', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    status.className = 'scrape-status success';
-                    status.textContent = `✅ 수집 완료! ${result.scraped_count}건 수집, ${result.inserted_count}건 저장`;
-                    loadNotices(); // 테이블 새로고침
-                } else {
-                    status.className = 'scrape-status error';
-                    status.textContent = `❌ 수집 실패: ${result.error}`;
-                }
-            } catch (error) {
-                status.className = 'scrape-status error';
-                status.textContent = `❌ 오류: ${error.message}`;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '📥 공고 수집';
-                setTimeout(() => { status.style.display = 'none'; }, 5000);
-            }
-        }
-
-        // 페이지 로드 시 데이터 불러오기
-        document.addEventListener('DOMContentLoaded', loadNotices);
-    </script>
-</body>
-
-</html>
+    document.addEventListener('DOMContentLoaded', loadNotices);
+</script>
+{% endblock %}

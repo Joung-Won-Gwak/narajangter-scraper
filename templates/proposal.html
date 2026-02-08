@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}제안서 생성 - 나라장터 입찰공고{% endblock %}
+
+{% block content %}
+<header class="header">
+    <h1>📝 제안서 생성</h1>
+    <p class="subtitle">AI 기반 제안서 자동 생성</p>
+</header>
+
+<div class="form-container">
+    <div class="form-card">
+        <h2>제안서 생성 정보</h2>
+
+        <form id="proposalForm" class="proposal-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="rfpFile">제안요청서 (RFP)</label>
+                <div class="file-upload-area" id="rfpUploadArea">
+                    <input type="file" id="rfpFile" name="rfpFile" class="file-input" accept=".pdf,.docx,.doc" required>
+                    <div class="file-upload-content">
+                        <div class="upload-icon">📄</div>
+                        <p>클릭하여 파일 선택 또는 드래그 앤 드롭</p>
+                        <small>PDF, DOCX 파일 지원 (최대 10MB)</small>
+                    </div>
+                    <div class="file-name" id="rfpFileName" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="templateFile">제안서 템플릿</label>
+                <div class="file-upload-area" id="templateUploadArea">
+                    <input type="file" id="templateFile" name="templateFile" class="file-input" accept=".docx,.doc">
+                    <div class="file-upload-content">
+                        <div class="upload-icon">📋</div>
+                        <p>클릭하여 파일 선택 또는 드래그 앤 드롭</p>
+                        <small>DOCX 파일 지원 (선택사항)</small>
+                    </div>
+                    <div class="file-name" id="templateFileName" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="requirements">추가 요구사항</label>
+                <textarea id="requirements" name="requirements" class="form-textarea" rows="5"
+                    placeholder="제안서에 포함되어야 할 특별한 요구사항이나 강조할 내용을 입력하세요..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="companyInfo">회사 정보</label>
+                <textarea id="companyInfo" name="companyInfo" class="form-textarea" rows="3"
+                    placeholder="회사명, 주요 실적, 강점 등을 입력하세요..."></textarea>
+            </div>
+
+            <button type="submit" class="btn-primary" id="generateBtn">
+                <span class="btn-icon">✨</span>
+                제안서 생성하기
+            </button>
+        </form>
+    </div>
+
+    <div class="info-card">
+        <h3>💡 사용 안내</h3>
+        <ul class="info-list">
+            <li>제안요청서(RFP)를 업로드하면 AI가 내용을 분석합니다.</li>
+            <li>제안서 템플릿이 있다면 해당 형식에 맞춰 생성됩니다.</li>
+            <li>추가 요구사항에 강조할 내용을 입력하세요.</li>
+            <li>생성된 제안서는 DOCX 형식으로 다운로드됩니다.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="status-card" id="statusCard" style="display: none;">
+    <h3>생성 진행 상태</h3>
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="status-message" id="statusMessage">준비 중...</div>
+</div>
+
+<div class="results-container" id="resultsContainer" style="display: none;">
+    <h2>✅ 제안서 생성 완료</h2>
+    <div class="download-card">
+        <div class="download-icon">📥</div>
+        <h3>제안서가 준비되었습니다</h3>
+        <p>아래 버튼을 클릭하여 제안서를 다운로드하세요.</p>
+        <button class="btn-primary" id="downloadBtn">
+            <span class="btn-icon">💾</span>
+            제안서 다운로드
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 파일 업로드 UI 처리
+    function setupFileUpload(inputId, areaId, fileNameId) {
+        const input = document.getElementById(inputId);
+        const area = document.getElementById(areaId);
+        const fileName = document.getElementById(fileNameId);
+
+        input.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                fileName.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                fileName.style.display = 'block';
+                area.classList.add('has-file');
+            }
+        });
+
+        area.addEventListener('click', () => input.click());
+
+        // 드래그 앤 드롭
+        area.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            area.classList.add('drag-over');
+        });
+
+        area.addEventListener('dragleave', () => {
+            area.classList.remove('drag-over');
+        });
+
+        area.addEventListener('drop', (e) => {
+            e.preventDefault();
+            area.classList.remove('drag-over');
+
+            if (e.dataTransfer.files.length > 0) {
+                input.files = e.dataTransfer.files;
+                input.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    setupFileUpload('rfpFile', 'rfpUploadArea', 'rfpFileName');
+    setupFileUpload('templateFile', 'templateUploadArea', 'templateFileName');
+
+    document.getElementById('proposalForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const btn = document.getElementById('generateBtn');
+        const statusCard = document.getElementById('statusCard');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const statusMessage = document.getElementById('statusMessage');
+        const progressFill = document.getElementById('progressFill');
+
+        // UI 초기화
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-icon">⏳</span> 생성 중...';
+        statusCard.style.display = 'block';
+        resultsContainer.style.display = 'none';
+        statusMessage.textContent = 'RFP 파일 분석 중...';
+        progressFill.style.width = '20%';
+
+        try {
+            // 시뮬레이션: 실제로는 백엔드 API 호출
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            statusMessage.textContent = 'AI 모델로 제안서 생성 중...';
+            progressFill.style.width = '60%';
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            statusMessage.textContent = '템플릿 적용 중...';
+            progressFill.style.width = '90%';
+
+            const response = await fetch('/api/proposal/generate', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                progressFill.style.width = '100%';
+                statusMessage.textContent = '✅ 생성 완료!';
+                resultsContainer.style.display = 'block';
+
+                // 다운로드 버튼 설정
+                document.getElementById('downloadBtn').onclick = () => {
+                    if (result.download_url) {
+                        window.location.href = result.download_url;
+                    } else {
+                        alert('제안서 파일을 준비 중입니다. 잠시 후 다시 시도해주세요.');
+                    }
+                };
+            } else {
+                progressFill.style.width = '100%';
+                progressFill.style.backgroundColor = 'var(--danger)';
+                statusMessage.textContent = `❌ 생성 실패: ${result.error}`;
+            }
+        } catch (error) {
+            progressFill.style.width = '100%';
+            progressFill.style.backgroundColor = 'var(--danger)';
+            statusMessage.textContent = `❌ 오류: ${error.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="btn-icon">✨</span> 제안서 생성하기';
+        }
+    });
+</script>
+{% endblock %}

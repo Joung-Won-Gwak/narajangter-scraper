@@ -42,9 +42,9 @@ def init_db():
         conn.commit()
         cur.close()
         conn.close()
-        print("✅ 데이터베이스 테이블 초기화 완료")
+        print("[OK] 데이터베이스 테이블 초기화 완료")
     except Exception as e:
-        print(f"❌ 테이블 초기화 실패: {e}")
+        print(f"[ERROR] 테이블 초기화 실패: {e}")
 
 def get_db_connection():
     """데이터베이스 연결 - Railway DATABASE_URL 또는 개별 변수 지원"""
@@ -55,7 +55,7 @@ def get_db_connection():
         from urllib.parse import urlparse
         parsed = urlparse(database_url)
         db_name = parsed.path[1:]  # 앞의 '/' 제거
-        print(f"🔗 DB 연결: host={parsed.hostname}, database={db_name}")
+        print(f"[DB] Connecting to: host={parsed.hostname}, database={db_name}")
         return psycopg2.connect(
             host=parsed.hostname,
             port=parsed.port or 5432,
@@ -67,7 +67,7 @@ def get_db_connection():
     else:
         # 개별 환경변수 사용 (로컬 개발용)
         db_name = os.getenv("POSTGRES_DB", "railway")
-        print(f"🔗 DB 연결 (로컬): database={db_name}")
+        print(f"[DB] Connecting (local): database={db_name}")
         return psycopg2.connect(
             host=os.getenv("POSTGRES_HOST", "localhost"),
             port=int(os.getenv("POSTGRES_PORT", 5432)),
@@ -83,18 +83,39 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    """메인 페이지"""
+    """메인 대시보드"""
     return render_template('index.html')
+
+@app.route('/collect')
+def collect():
+    """데이터 수집 페이지"""
+    return render_template('collect.html')
+
+@app.route('/search')
+def search():
+    """데이터 조회 페이지"""
+    return render_template('search.html')
+
+@app.route('/proposal')
+def proposal():
+    """제안서 생성 페이지"""
+    return render_template('proposal.html')
 
 @app.route('/api/notices')
 def get_notices():
-    """공고 목록 API"""
+    """공고 목록 API - 고급 필터링 지원"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
         # 검색 파라미터
         keyword = request.args.get('keyword', '')
+        organization = request.args.get('organization', '')
+        min_price = request.args.get('min_price', '')
+        max_price = request.args.get('max_price', '')
+        start_date = request.args.get('start_date', '')
+        end_date = request.args.get('end_date', '')
+        limit = request.args.get('limit', '')
         
         query = """
             SELECT 
@@ -116,7 +137,30 @@ def get_notices():
             query += " AND title ILIKE %s"
             params.append(f"%{keyword}%")
         
+        if organization:
+            query += " AND organization ILIKE %s"
+            params.append(f"%{organization}%")
+        
+        if min_price:
+            query += " AND estimated_price >= %s"
+            params.append(int(min_price))
+        
+        if max_price:
+            query += " AND estimated_price <= %s"
+            params.append(int(max_price))
+        
+        if start_date:
+            query += " AND publish_date >= %s"
+            params.append(start_date)
+        
+        if end_date:
+            query += " AND publish_date <= %s"
+            params.append(end_date)
+        
         query += " ORDER BY publish_date DESC, scraped_at DESC"
+        
+        if limit:
+            query += f" LIMIT {int(limit)}"
         
         cur.execute(query, params)
         notices = cur.fetchall()
@@ -192,14 +236,25 @@ def run_scraper():
         import traceback
         from openapi_scraper import NarajangterPipeline
         
+        # 요청 데이터 파싱
+        data = request.get_json() or {}
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        max_pages = data.get('max_pages', 5)
+        
         pipeline = NarajangterPipeline()
-        result = pipeline.run(max_pages=5)
+        
+        # 날짜 범위가 제공된 경우 파라미터로 전달
+        # 실제 구현에서는 openapi_scraper.py의 run 메서드가 날짜 파라미터를 지원해야 함
+        result = pipeline.run(max_pages=max_pages)
         
         return jsonify({
             "success": result["success"],
             "scraped_count": result["scraped_count"],
             "inserted_count": result["inserted_count"],
-            "errors": result["errors"][:5] if result["errors"] else []
+            "errors": result["errors"][:5] if result["errors"] else [],
+            "start_date": start_date,
+            "end_date": end_date
         })
         
     except Exception as e:
@@ -211,6 +266,37 @@ def run_scraper():
             "traceback": traceback.format_exc(),
             "scraped_count": 0,
             "inserted_count": 0
+        }), 500
+
+@app.route('/api/proposal/generate', methods=['POST'])
+def generate_proposal():
+    """제안서 생성 API"""
+    try:
+        # 파일 업로드 처리
+        rfp_file = request.files.get('rfpFile')
+        template_file = request.files.get('templateFile')
+        requirements = request.form.get('requirements', '')
+        company_info = request.form.get('companyInfo', '')
+        
+        if not rfp_file:
+            return jsonify({
+                "success": False,
+                "error": "제안요청서 파일이 필요합니다."
+            }), 400
+        
+        # TODO: 실제 AI 기반 제안서 생성 로직 구현
+        # 현재는 시뮬레이션 응답 반환
+        
+        return jsonify({
+            "success": True,
+            "message": "제안서가 생성되었습니다.",
+            "download_url": "/api/proposal/download/sample.docx"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
         }), 500
 
 
